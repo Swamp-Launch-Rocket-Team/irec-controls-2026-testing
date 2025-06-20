@@ -3,8 +3,8 @@ import numpy as np
 
 class Airbrake:
     def __init__(self, max_rate):
-        self.target_u = 0
-        self.actual_u = 1
+        self.target_u = 0.0
+        self.actual_u = 0.0
         self.max_rate = max_rate
 
     def set_target_u(self, target_u):

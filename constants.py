@@ -19,5 +19,14 @@ a = (0.020, 0.025, 0.030)
 pwm = (0, 120, 240)
 max_rate = 10.9
 
+#controller constants
+v_resolution = 50
+max_final_v = 40.0
+target_apogee = 1000.0
+dt_dynamics = 0.0001
+dt_sample = 0.01
+surface_resolution = (50, 50)
+
+
 #simluation constants
 velocity_buffer = 1.0
