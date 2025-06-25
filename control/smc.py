@@ -1,5 +1,5 @@
 from airbrake import Airbrake
-from rocket import Rocket
+from control.rocket import Rocket
 import constants as c
 
 import numpy as np

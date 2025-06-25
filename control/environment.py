@@ -2,6 +2,7 @@ import math
 
 import constants as c
 
+
 class Environment:
     def __init__(self, p0, t0, molar_mass, lapse_rate):
         self.p0 = p0

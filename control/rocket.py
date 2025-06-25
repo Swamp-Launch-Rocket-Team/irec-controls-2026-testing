@@ -2,12 +2,14 @@ import math
 
 import numpy as np
 from environment import Environment
+
 from airbrake import Airbrake
 import constants as c
 
+
 class Rocket:
     def __init__(self, environment: Environment, airbrake: Airbrake):
-        self.state = np.array([0, 0, 0, 0]) # (x, z, v, theta)
+        self.state = np.array([0, 0, 0, 0]) # (x, z, x-dot, z-dot)
         self.airbrake = airbrake
         self.environment = environment
 
@@ -17,17 +19,27 @@ class Rocket:
     def get_u(self):
         return self.airbrake.get_actual_u()
 
-    def state_derivative(self, u) -> np.ndarray:
-        return np.array([
-            self.state[2] * np.cos(self.state[3]),
-            self.state[2] * np.sin(self.state[3]),
-            -self.get_drag_force(self.state[2], self.state[1], u) / c.post_burn_mass - c.gravity * np.sin(self.state[3]),
-            -(c.gravity * np.cos(self.state[3])) / math.sqrt(self.state[2] ** 2 + c.velocity_buffer ** 2) #0.001 to prevent divide by zero error
-        ])
+    def state_acceleration(self, u) -> np.ndarray:
+        v = np.array([self.state[2], self.state[3]])
+        v_mag = np.linalg.norm(v)
+        v_unit = v / (v_mag + 1e-8) #added to prevent divide by zero errors
+        f_drag = self.get_drag_force(v_mag, self.state[1], u)
+
+        return -v_unit * f_drag + np.array([0, -c.gravity])
 
     def project_next_state(self, u, dt) -> np.ndarray:
-        state_derivative = self.state_derivative(u)
-        return self.state + state_derivative * dt
+        state_acceleration = self.state_acceleration(u) #acceration as an input.
+        A = np.array([[1, 0, dt, 0],
+                      [0, 1, 0, dt],
+                      [0, 0, 1, 0],
+                      [0, 0, 0, 1]])
+        B = np.array([[0.5*dt**2, 0],
+                      [0, 0.5*dt**2],
+                      [dt, 0],
+                      [0, dt]])
+
+        state_column = A @ self.state + B @ state_acceleration
+        return state_column.reshape(-1)
 
     def set_state(self, state):
         self.state = state
