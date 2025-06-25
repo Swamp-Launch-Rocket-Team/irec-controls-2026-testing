@@ -27,6 +27,9 @@ dt_dynamics = 0.0001
 dt_sample = 0.01
 surface_resolution = (50, 50)
 
+#sensor constants
+ahrs_variance = 0.01
+altimeter_variance = 0.01
 
 #simluation constants
 velocity_buffer = 1.0

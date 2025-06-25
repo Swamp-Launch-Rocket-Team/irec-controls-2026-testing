@@ -21,8 +21,10 @@ class Airbrake:
     def get_actual_u(self):
         return self.actual_u
 
-    def get_a(self):
-        return np.interp(self.actual_u, c.u, c.a)
+    @staticmethod
+    def get_a(u):
+        return np.interp(u, c.u, c.a)
 
-    def get_cd(self):
-        return np.interp(self.actual_u, c.u, c.cd)
+    @staticmethod
+    def get_cd(u):
+        return np.interp(u, c.u, c.cd)
