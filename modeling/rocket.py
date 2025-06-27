@@ -19,13 +19,21 @@ class Rocket:
     def get_u(self):
         return self.airbrake.get_actual_u()
 
-    def state_acceleration(self, u) -> np.ndarray:
-        v = np.array([self.state[2], self.state[3]])
-        v_mag = np.linalg.norm(v)
-        v_unit = v / (v_mag + 0.0000001) #added to prevent divide by zero errors
-        f_drag = self.get_drag_force(v_mag, self.state[1], u)
+    def get_v(self):
+        return np.array([self.state[2], self.state[3]])
 
-        return -v_unit * f_drag + np.array([0, -c.gravity])
+    def get_v_mag(self):
+        return np.linalg.norm(self.get_v())
+
+    def get_unit_v(self):
+        return self.get_v() / (self.get_v_mag() + 0.0000001)
+
+    def state_acceleration(self, u) -> np.ndarray:
+        f_drag = self.get_drag_force(self.get_v_mag(), self.state[1], u)
+        return -self.get_unit_v() * f_drag + np.array([0, -c.gravity])
+
+    def get_authority_rate(self):
+        return abs(self.state_acceleration(1.0)[1] - self.state_acceleration(0.0)[1])
 
     def project_next_state(self, u, dt) -> np.ndarray:
         state_acceleration = self.state_acceleration(u) #acceration as an input.

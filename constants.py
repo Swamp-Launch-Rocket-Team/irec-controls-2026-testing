@@ -31,6 +31,7 @@ target_apogee = 1000.0
 dt_dynamics = 0.0001
 dt_sample = 0.01
 surface_resolution = (50, 50)
+convergence_time = 3
 
 #sensor constants
 ahrs_variance_t = 0.01

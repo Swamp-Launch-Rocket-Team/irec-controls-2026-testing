@@ -1,61 +1,63 @@
-from airbrake import Airbrake
-from control.rocket import Rocket
-import constants as c
+from unittest import case
 
 import numpy as np
-from scipy import interpolate
 
-class SlidingModeController:
-    def __init__(self, target_apogee, altitude_floor, environment, target_input=0.5):
-        self.target_input = target_input
+import constants as c
+
+
+class SMC:
+    def __init__(self, target_apogee, target_input, surface, convergence_time, mode="saturation"):
         self.target_apogee = target_apogee
-        self.altitude_floor = altitude_floor
-        self.environment = environment
-        self.surface = self.generate_sliding_surface()
+        self.target_input = target_input
+        self.surface = surface
+        self.mode = mode.lower()
+        self.convergence_time = convergence_time
 
-    def generate_sliding_surface(self):
-        points = [] # list of <z, theta>
-        values = [] # list of <v>
+    def get_output(self, state, authority_rate):
+        thickness = self.get_boundary_thickness(state, authority_rate)
+        sliding_z_dot: float = self.surface(np.array([[state[1], state[2]]]))[0]
+        error = state[3] - sliding_z_dot
 
-        initial_v = 0.0
-        while initial_v <= c.max_final_v:
-            new_points, new_values = self.generate_target_trajectory(initial_v)
-            points.extend(new_points)
-            values.extend(new_values)
-            initial_v += c.max_final_v / c.v_resolution
+        if abs(error) < thickness:
+            if self.mode == "saturation":
+                return self.get_saturation_output(error, thickness)
+            elif self.mode == "deadband":
+                return self.get_deadband_output()
+            else:
+                raise ValueError(f"Invalid mode: {self.mode}")
+        else:
+            if error > 0.0:
+                return 1.0
+            else:
+                return 0.0
 
-        z_grid, theta_grid = np.meshgrid(
-            np.linspace(self.altitude_floor, self.target_apogee, c.surface_resolution[0]),
-            np.linspace(0.0, 0.5*np.pi, c.surface_resolution[1])
-        )
 
-        points_grid = np.array([z_grid.flatten(), theta_grid.flatten()]).T
+    @staticmethod
+    def get_time_to_apogee(state):
+        return state[3] / c.gravity
 
-        grid_data = interpolate.griddata(
-            points, np.array(values), points_grid, method="cubic", fill_value=0.0
-        )
+    @staticmethod
+    def get_boundary_thickness_0(authority_rate):
+        lag_time = 0.5 / c.max_rate
+        return lag_time * authority_rate
 
-        return interpolate.LinearNDInterpolator(
-            points_grid,
-            grid_data,
-            fill_value=0.0
-        )
+    def get_convergence_multiplier(self, state):
+        t_apogee = self.get_time_to_apogee(state)
 
-    def generate_target_trajectory(self, initial_v):
-        rocket = Rocket(self.environment, Airbrake(c.max_rate))
-        rocket.set_state(np.array([0, self.target_apogee, initial_v, 0]))
-        points = [(rocket.state[1], rocket.state[3])]
-        values = [rocket.state[2]]
-        t_accum = 0.0
+        if t_apogee > c.convergence_time:
+            return 1.0
+        elif t_apogee > 0.0:
+            return t_apogee / c.convergence_time
+        else:
+            return 0.0
 
-        while rocket.state[1] > self.altitude_floor:
-            new_state = rocket.project_next_state(self.target_input, -c.dt_dynamics)
-            rocket.set_state(new_state)
-            t_accum += c.dt_dynamics
+    def get_boundary_thickness(self, state, authority_rate):
+        multiplier = self.get_convergence_multiplier(state)
+        thickness_0 = self.get_boundary_thickness_0(state)
+        return multiplier * thickness_0
 
-            if t_accum > c.dt_sample:
-                points.append((rocket.state[1], rocket.state[3]))
-                values.append(rocket.state[2])
-                t_accum = 0.0
+    def get_saturation_output(self, error, thickness):
+        return self.target_input + error / (2.0 * thickness)
 
-        return points, values
+    def get_deadband_output(self):
+        return self.target_input
