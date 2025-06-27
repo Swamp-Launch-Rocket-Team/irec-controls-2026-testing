@@ -7,6 +7,7 @@ density_0 = 1.00
 temp_0 = 300.0
 gravity = 9.80665
 lapse_rate = 0.0065
+gamma = 1.4
 
 #rocket constants
 post_burn_mass = 22.23 #mass of the rocket post-burn
@@ -14,7 +15,11 @@ airbrake_to_altimeter = 2.0 #distance from airbrake to altimeter
 
 #airbrake constants
 u = (0.0, 0.5, 1.0)
+mach = (0.0, 0.5, 1.0)
+
 cd = (0.476, 0.476, 0.476)
+cd_reduction = (1.0, 0.9, 0.8)
+
 a = (0.020, 0.025, 0.030)
 pwm = (0, 120, 240)
 max_rate = 10.9
@@ -28,8 +33,15 @@ dt_sample = 0.01
 surface_resolution = (50, 50)
 
 #sensor constants
-ahrs_variance = 0.01
+ahrs_variance_t = 0.01
+ahrs_variance_r = 0.01
 altimeter_variance = 0.01
 
 #simluation constants
 velocity_buffer = 1.0
+
+#test constants
+ahrs_test_bias_t = 0.0001
+ahrs_test_variance_t = 0.0001
+ahrs_test_bias_r = 0.0001
+ahrs_test_variance_r = 0.0001

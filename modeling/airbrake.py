@@ -26,5 +26,5 @@ class Airbrake:
         return np.interp(u, c.u, c.a)
 
     @staticmethod
-    def get_cd(u):
-        return np.interp(u, c.u, c.cd)
+    def get_cd(u, mach):
+        return np.interp(u, c.u, c.cd) * np.interp(mach, c.mach, c.cd_reduction)

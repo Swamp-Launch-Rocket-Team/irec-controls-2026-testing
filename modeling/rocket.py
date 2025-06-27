@@ -58,7 +58,7 @@ class Rocket:
         self.state = self.project_next_state(dt, self.get_u())
 
     def get_drag_force(self, v, z, u):
-        return 0.5 * self.environment.get_p(z) * Airbrake.get_a(u) * Airbrake.get_cd(u) * v**2
+        return 0.5 * self.environment.get_p(z) * Airbrake.get_a(u) * Airbrake.get_cd(u, v / self.environment.get_c(z)) * v**2
 
     def is_apogee(self):
         return self.state[3] <= 0
