@@ -1,9 +1,9 @@
 class Altimeter:
-    def __init__(self, variance):
-        self.variance = variance
+    def __init__(self, dist):
+        self.dist = dist
 
     def get_variance(self):
-        return self.variance
+        return self.dist**2
 
-    def get_altitude(self):
+    def get_z(self):
         return 0.0

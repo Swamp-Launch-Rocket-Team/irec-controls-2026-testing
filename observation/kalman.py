@@ -19,12 +19,19 @@ class Kalman:
         A = self.rocket.get_A(dt)
         B = self.rocket.get_B(dt)
 
-        Q = self.ahrs.get_variance() * B @ B.T
+        Q = self.ahrs.get_variance_t() * B @ B.T
         self.state = A @ self.state + B @ self.ahrs.get_acceleration()
         self.P = A @ self.P @ A.T + Q
 
     def measurement_update(self):
-        z = self.altimeter.get_altitude()
+        z = self.altimeter.get_z()
         K = self.P @ self.H.T @ np.linalg.inv(self.H @ self.P @ self.H.T + self.R)
         self.state = self.state + K @ (z - self.H @ self.state)
         self.P = (np.eye(4) - K @ self.H) @ self.P
+
+    def get_state(self):
+        return self.state
+
+    def set_state(self, state, P=np.zeros((4, 4))):
+        self.state = state
+        self.P = P
