@@ -11,7 +11,6 @@ gamma = 1.4
 
 #rocket constants
 post_burn_mass = 22.23 #mass of the rocket post-burn
-airbrake_to_altimeter = 2.0 #distance from airbrake to altimeter
 
 #airbrake constants
 u = (0.0, 0.5, 1.0)
@@ -46,3 +45,8 @@ ahrs_test_bias_t = 0.0001
 ahrs_test_variance_t = 0.0001
 ahrs_test_bias_r = 0.0001
 ahrs_test_variance_r = 0.0001
+
+#data analysis constants
+logging_values = ("t", "x", "z", "vx", "vz", "U", "ax", "az", "theta", "altimeter")
+logging_types = (float, float, float, float, float, float, float, float, float, float)
+delimiter = "|"
