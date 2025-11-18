@@ -1,16 +1,15 @@
 import math
+import constants.atmosphere_c as c
 
-import constants as c
 
-
-class Environment:
-    def __init__(self, p0, t0, molar_mass, lapse_rate, gamma):
+class AtmosphereModel:
+    def __init__(self, p0, t0):
         self.p0 = p0
         self.t0 = t0
-        self.lapse_rate = lapse_rate
-        self.molar_mass = molar_mass
-        self.sgc = c.gas_constant / molar_mass
-        self.gamma = gamma
+        self.lapse_rate = c.lapse_rate
+        self.molar_mass = c.molar_mass
+        self.sgc = c.gas_constant / c.molar_mass
+        self.gamma = c.gamma
 
     def set_p0(self, new_p0, weight):
         self.p0 = (1 - weight) * self.p0 + weight * new_p0
@@ -37,8 +36,4 @@ class Environment:
         return self.t0 / self.lapse_rate * (1 - math.pow(p / self.p0, (self.sgc * self.lapse_rate) / (c.gravity * self.molar_mass)))
 
     def get_c(self, z):
-        """
-        :param z: altitude in meters
-        :return: speed of sound
-        """
         return math.sqrt(self.gamma * c.gas_constant * self.get_t(z) / self.molar_mass)
