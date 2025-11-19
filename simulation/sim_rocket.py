@@ -1,4 +1,6 @@
 import rocketpy
+import numpy as np
+
 import constants.rocket_c as r
 from gnc.gnc import GNC
 from noisy_ahrs import Noisy_AHRS
@@ -76,6 +78,7 @@ class Rocket:
         self.actuator = Airbrake()
 
         self.gnc = None
+        self.input = 0
 
         self.time = 0
         self.loop_number = 0
@@ -84,12 +87,32 @@ class Rocket:
         self.nu_frequency = 20
         self.np_frequency = 200
 
-    def call_gnc(self, y):
+    def call_gnc_pre_burnout(self, y, dt, p0, t0):
         if self.loop_number == 0:
-            self.gnc = GNC()
-    
-    def get_current_actuation(self):
-        pass
+            self.gnc = GNC(
+                np.array([0, 0, 0, 0, 0]),
+                p0, t0
+            )
+        if self.loop_number % self.np_frequency == 0:
+            self.gnc.nav_propegate(dt, self.input)
+        if self.loop_number % self.nu_frequency == 0:
+            self.gnc.nav_update(y)
+
+    def call_gnc_post_burnout(self, y, dt, p0, t0):
+        if self.loop_number % self.np_frequency == 0:
+            self.gnc.nav_propegate(dt, self.input)
+        if self.loop_number % self.nu_frequency == 0:
+            self.gnc.nav_update(y)
+        if self.loop_number % self.g_frequency == 0:
+            self.gnc.recompute_guidance()
+        if self.loop_number % self.c_frequency == 0 and self.gnc.path is not None:
+            self.gnc.control_update()
+
+    def get_current_actuation(self, time, cycle_frequency, state, state_history, observed_variables, brakes):
+        burn_out = time > self.motor.burn_out_time
+        dt = 1.0 / cycle_frequency
+        x, y, z, v_x, v_y, v_z, e0, e1, e2, e3, w_x, w_y, w_z = state
+
 
     def start_start_sim(self):
         pass
