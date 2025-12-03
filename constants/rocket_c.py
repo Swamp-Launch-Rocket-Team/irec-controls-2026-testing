@@ -1,7 +1,7 @@
 import datetime
 import math
 
-rocket_radius = 156 / 2000
+rocket_radius = 155.9 / 2000
 rocket_mass = 18.5
 rocket_inertia = (22.52, 22.52, 0.112)
 rocket_com = 1.92
@@ -54,6 +54,8 @@ servo_tao = 0.352
 
 rocket_refa = math.pi * rocket_radius**2
 rocket_cla = 10.182
-rocket_aoa_vel = (0.00600, -0.00001 ,-0.00002)
-rocket_cd_mach = (0.78, -0.25, 0.30)
+rocket_aoa_vel = (0.0100, -0.00002 ,-0.00003)
+rocket_cd_mach = (0.7815, -0.2082, 0.2302)
 rocket_cd_airbrake = (1, 1) #initial, determined in real time via adaptive model
+
+coast_mass = motor_mass + rocket_mass

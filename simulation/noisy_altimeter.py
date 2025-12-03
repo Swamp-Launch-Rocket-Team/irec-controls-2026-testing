@@ -9,4 +9,3 @@ class Noisy_Altimeter:
         
     def get_noisy_altitude(self, z_clean):
         return z_clean + np.random.normal(loc=0, scale=self.z_rms)
-        

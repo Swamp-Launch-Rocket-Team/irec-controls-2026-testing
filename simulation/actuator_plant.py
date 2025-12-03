@@ -9,3 +9,8 @@ class Airbrake:
         rate = (state - self.state) / r.servo_tao
 
         self.state += rate * dt
+
+        if self.state < 0:
+            self.state = 0
+        if self.state > 1:
+            self.state = 1

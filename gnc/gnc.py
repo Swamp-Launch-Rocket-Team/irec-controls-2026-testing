@@ -1,15 +1,15 @@
 import numpy as np
-from control import StateController
-from guidance import PathGuidance
-from navigation import KalmanFilter
-from atmosphere import AtmosphereModel
-from dynamics import DynamicsModel
+from gnc.control import StateController
+from gnc.guidance import PathGuidance
+from gnc.navigation import KalmanFilter
+from gnc.atmosphere import AtmosphereModel
+from gnc.dynamics import DynamicsModel
 
 class GNC:
     def __init__(self, x0, p0, t0):
         self.dynamics = DynamicsModel(AtmosphereModel(p0, t0))
         self.compass = KalmanFilter(self.dynamics)
-        self.path_guidance = PathGuidance(self.dynamics, np.array([0, 0, 0, 0, 0]))
+        self.path_guidance = PathGuidance(self.dynamics)
         self.controller = StateController(self.dynamics)
         self.path = None
         self.input = 0
@@ -30,6 +30,5 @@ class GNC:
     def nav_update(self, y_i):
         self.compass.update(y_i)
     
-    def nav_propegate(self, dt):
-        self.compass.predict(dt, self.input)
-    
+    def nav_propegate(self, dt, accel):
+        self.compass.predict(dt, np.append(accel, self.input))

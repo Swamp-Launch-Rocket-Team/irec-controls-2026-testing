@@ -1,5 +1,5 @@
 import numpy as np
-from atmosphere import AtmosphereModel
+from gnc.atmosphere import AtmosphereModel
 import constants.rocket_c as r
 import constants.atmosphere_c as a
 
@@ -11,7 +11,7 @@ class DynamicsModel:
         self.atmosphere = atmosphere
 
     def get_wind(self, state):
-        v = np.array([state[2], state[3]])
+        v = np.array([state[1], state[3]])
         w1 = v / np.linalg.norm(v)
         w2 = np.array([-w1[1], w1[0]])
         return w1, w2
@@ -20,7 +20,7 @@ class DynamicsModel:
         return 0.5 * self.atmosphere.get_d(state[2]) * v_mag**2
 
     def get_v_mag(self, state):
-        return state[1]**2 + state[3]**2
+        return np.sqrt(state[1]**2 + state[3]**2)
     
     def get_mach(self, v_mag, c):
         return v_mag / c
@@ -49,7 +49,6 @@ class DynamicsModel:
     def get_actuator_derivative(self, U_command, U_actual):
         return (U_command - U_actual) / r.servo_tao
 
-    
     def get_state_derivative(self, state, input):
         w1, w2 = self.get_wind(state)
         
@@ -67,12 +66,12 @@ class DynamicsModel:
         cl = self.get_cl(aoa)
         lift = self.get_lift(dyn_p, cl) * w2
 
-        gravity = -a.gravity * r.rocket_mass * np.array([0, 1])
+        gravity = -a.gravity * r.coast_mass * np.array([0, 1])
 
-        net_force = drag + lift + gravity
-        net_acceleration = net_force / r.rocket_mass
+        net_force = drag + gravity + lift
+        net_acceleration = net_force / r.coast_mass
 
-        U_rate = self.get_actuator_derivative(state[4], input[0])
+        U_rate = self.get_actuator_derivative(input, state[4])
 
         return np.array([
             state[1],
@@ -96,12 +95,7 @@ class DynamicsModel:
             state_partial_i = (self.get_state_derivative(state_i, input_0) - state_derivative_0) / e
             J_state[i] = state_partial_i
         
-        for i in range(1):
-            input_i = state_0.copy()
-            input_i[i] += e
-
-            input_partial_i = (self.get_state_derivative(state_0, input_i) - state_derivative_0) / e
-            J_input[i] = input_partial_i
+        J_input[0] = (self.get_state_derivative(state_0, input_0 + e) - state_derivative_0) / e
         
         return J_state, J_input
     
@@ -129,17 +123,17 @@ class DynamicsModel:
             [0, 1, 0, 0, 0],
             [0, 0, 1, dt, 0],
             [0, 0, 0, 1, 0],
-            [0, 0, 0, 0, -dt / r.servo_tao]
+            [0, 0, 0, 0, 1]
         ])
     
     def get_kalman_B(self, dt):
         #input augmented with accelerometer readings
         return np.array([
+            [0.5*dt**2, 0, 0],
+            [dt, 0, 0],
             [0, 0.5*dt**2, 0],
             [0, dt, 0],
-            [0, 0, 0.5*dt**2],
-            [0, 0, dt],
-            [dt / r.servo_tao, 0, 0]
+            [0, 0, 0]
         ])
     
     def get_kalman_C(self, state_0):
