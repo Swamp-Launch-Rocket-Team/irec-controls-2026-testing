@@ -1,28 +1,26 @@
 import numpy as np
 import math
 
-q = 0.001
+q = 0.0001
 
 R = np.array([
-    [0.25, 0, 0],
-    [0, 0.2, 0],
-    [0, 0, 0.01]
+    [0.25, 0],
+    [0, 0.05]
 ])
 
 cQ = np.array([
-    [0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0],
-    [0, 0, 1, 0, 0],
-    [0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0.25]
+    [0.25, 0],
+    [0, 0]
 ])
 
 cR = np.array([
-    [0.5]
+    [1.0]
 ])
 
 target_actuation = 0.5
-target_apogee = 3048
+target_apogee = 2400
+
+target_state = np.array([target_apogee, target_actuation])
 
 dt_guidance = 0.01
 guidance_tolerance = 0.1

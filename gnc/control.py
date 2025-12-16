@@ -11,17 +11,20 @@ class StateController:
     def __init__(self, dynamics_model: DynamicsModel):
         self.dynamics_model = dynamics_model
     
-    def get_command_matrix(self, guidance_state, guidance_input):
-        J_state, J_input = self.dynamics_model.get_linearized(guidance_state, guidance_input)
+    def get_command_matrix(self, state_0, input_0, nav_state_0):
+        J_state, J_input = self.dynamics_model.get_linearized(state_0, input_0, nav_state_0)
         A = J_state.T
         B = J_input.T
-        print(A, B, guidance_state, guidance_input)
         
         S = solve_continuous_are(A, B, g.cQ, g.cR)
         K = np.linalg.inv(g.cR) @ B.T @ S
 
         return K
 
-    def get_control_command(self, true_state, guidance_state, guidance_input=g.target_actuation):
-        K = self.get_command_matrix(guidance_state, guidance_input)
-        return guidance_input - float(K @ (true_state.T - guidance_state.T))
+    def get_control_command(self, true_state, nav_state):
+        K = self.get_command_matrix(
+            true_state,
+            g.target_actuation,
+            nav_state
+        )
+        return g.target_actuation - float(K @ (true_state.T - g.target_state.T))

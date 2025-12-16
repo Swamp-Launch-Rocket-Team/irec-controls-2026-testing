@@ -2,6 +2,7 @@ import numpy as np
 from gnc.atmosphere import AtmosphereModel
 import constants.rocket_c as r
 import constants.atmosphere_c as a
+import constants.gnc_c as g
 
 class DynamicsModel:
     def __init__(self, atmosphere: AtmosphereModel):
@@ -17,7 +18,8 @@ class DynamicsModel:
         return w1, w2
     
     def get_dyn_p(self, state, v_mag):
-        return 0.5 * self.atmosphere.get_d(state[2]) * v_mag**2
+        density = self.atmosphere.get_d(state[2])
+        return 0.5 * density * v_mag**2
 
     def get_v_mag(self, state):
         return np.sqrt(state[1]**2 + state[3]**2)
@@ -48,21 +50,21 @@ class DynamicsModel:
     
     def get_actuator_derivative(self, U_command, U_actual):
         return (U_command - U_actual) / r.servo_tao
-
-    def get_state_derivative(self, state, input):
-        w1, w2 = self.get_wind(state)
+    
+    def get_nav_state_derivative(self, nav_state, input):
+        w1, w2 = self.get_wind(nav_state)
         
-        c = self.atmosphere.get_c(state[2])
-        v_mag = self.get_v_mag(state)
+        c = self.atmosphere.get_c(nav_state[2])
+        v_mag = self.get_v_mag(nav_state)
         mach = self.get_mach(v_mag, c)
-        dyn_p = self.get_dyn_p(state, v_mag)
+        dyn_p = self.get_dyn_p(nav_state, v_mag)
 
         base_cd = self.get_base_cd(mach)
-        airbrake_cd = self.get_airbrake_cd(state[4])
+        airbrake_cd = self.get_airbrake_cd(input)
         cd = self.get_cd(base_cd, airbrake_cd)
         drag = -self.get_drag(dyn_p, cd) * w1
 
-        aoa = self.get_aoa(state)
+        aoa = self.get_aoa(nav_state)
         cl = self.get_cl(aoa)
         lift = self.get_lift(dyn_p, cl) * w2
 
@@ -71,71 +73,96 @@ class DynamicsModel:
         net_force = drag + gravity + lift
         net_acceleration = net_force / r.coast_mass
 
-        U_rate = self.get_actuator_derivative(input, state[4])
-
         return np.array([
-            state[1],
+            nav_state[1],
             net_acceleration[0],
-            state[3],
-            net_acceleration[1],
-            U_rate
+            nav_state[3],
+            net_acceleration[1]
         ])
+    
 
-    def get_linearized(self, state_0, input_0, e=1e-6):
+    def get_z_apogee(self, nav_state, input_0=g.target_actuation):
+        first_loop = True
+        state_i = nav_state.copy()
+
+        while state_i[3] > 0:
+            # RK1 integration
+            if first_loop:
+                k1 = self.get_nav_state_derivative(state_i, input_0)
+                state_i = state_i + g.dt_guidance*k1
+                first_loop = False
+            else:
+                k1 = self.get_nav_state_derivative(state_i, g.target_actuation)
+                state_i = state_i + g.dt_guidance*k1
+        
+        return state_i[2]
+    
+    def get_state(self, nav_state, U_actual):
+        return np.array([
+            self.get_z_apogee(nav_state),
+            U_actual
+        ])
+    
+    def get_state_derivative(self, state, input, nav_state):
+        return np.array([
+            (self.get_z_apogee(nav_state, input) - state[0]) / g.dt_guidance,
+            self.get_actuator_derivative(input, state[1])
+        ])
+    
+    def get_linearized(self, state_0, input_0, nav_state_0, e=1e-6):
         #forward finite difference approx        
-        state_derivative_0 = self.get_state_derivative(state_0, input_0)
+        state_derivative_0 = self.get_state_derivative(state_0, input_0, nav_state_0)
 
-        J_state = np.zeros((5, 5))
-        J_input = np.zeros((1, 5))
+        J_state = np.zeros((2, 2))
+        J_input = np.zeros((1, 2))
 
-        for i in range(5):
+        for i in range(2):
             state_i = state_0.copy()
             state_i[i] += e
 
-            state_partial_i = (self.get_state_derivative(state_i, input_0) - state_derivative_0) / e
+            state_partial_i = (self.get_state_derivative(state_i, input_0, nav_state_0) - state_derivative_0) / e
             J_state[i] = state_partial_i
         
-        J_input[0] = (self.get_state_derivative(state_0, input_0 + e) - state_derivative_0) / e
+        J_input[0] = (self.get_state_derivative(state_0, input_0 + e, nav_state_0) - state_derivative_0) / e
         
         return J_state, J_input
     
-    def get_sensor_output(self, state):
-        return np.array([state[2], np.atan2(state[3], state[1]) + self.get_aoa(state), state[4]])
+    def get_sensor_output(self, nav_state):
+        return np.array([nav_state[2], np.atan2(nav_state[3], nav_state[1]) + self.get_aoa(nav_state)])
     
-    def get_linearized_output(self, state_0, e=1e-6):
+    def get_linearized_output(self, nav_state_0, e=1e-6):
         #forward finite difference approx        
-        output_0 = self.get_sensor_output(state_0)
+        output_0 = self.get_sensor_output(nav_state_0)
 
-        J_output = np.zeros((5, 3))
+        J_output = np.zeros((4, 2))
 
-        for i in range(5):
-            output_i = state_0.copy()
+        for i in range(4):
+            output_i = nav_state_0.copy()
             output_i[i] += e
 
             output_partial_i = (self.get_sensor_output(output_i) - output_0) / e
             J_output[i] = output_partial_i
+        
         return J_output
     
     def get_kalman_A(self, dt):
         #regular matrix, assumes constant accel
         return np.array([
-            [1, dt, 0, 0, 0],
-            [0, 1, 0, 0, 0],
-            [0, 0, 1, dt, 0],
-            [0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 1]
+            [1, dt, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, dt],
+            [0, 0, 0, 1]
         ])
     
     def get_kalman_B(self, dt):
         #input augmented with accelerometer readings
         return np.array([
-            [0.5*dt**2, 0, 0],
-            [dt, 0, 0],
-            [0, 0.5*dt**2, 0],
-            [0, dt, 0],
-            [0, 0, 0]
+            [0.5*dt**2, 0],
+            [dt, 0],
+            [0, 0.5*dt**2],
+            [0, dt]
         ])
     
-    def get_kalman_C(self, state_0):
+    def get_kalman_C(self, nav_state_0):
         #standard shit
-        return self.get_linearized_output(state_0).T
+        return self.get_linearized_output(nav_state_0).T

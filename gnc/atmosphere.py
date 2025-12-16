@@ -22,8 +22,8 @@ class AtmosphereModel:
 
     def get_p(self, z):
         return self.p0 * math.pow(
-            1 - (self.lapse_rate * z) / self.t0,
-            (c.gravity * self.molar_mass) / (self.sgc * self.lapse_rate)
+            self.get_t(z) / self.t0,
+            c.gravity / (self.sgc * self.lapse_rate)
         )
 
     def get_t(self, z):

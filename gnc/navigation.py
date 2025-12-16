@@ -9,31 +9,37 @@ class KalmanFilter:
         self.model = dynamics_model
         self.q = g.q
         self.R = g.R
-        self.x = np.array([0, 0, 0, 0, 0]).T
-        self.P = np.identity(5)
+        self.nav_x = np.array([0, 0, 0, 0]).T
+        self.U = 0
+        self.P = np.identity(4)
 
     def predict(self, dt, input: np.ndarray):
         A = self.model.get_kalman_A(dt)
         B = self.model.get_kalman_B(dt)
         
         Q = self.q * np.array([
-            [0.333 * dt ** 3, 0.5 * dt ** 2, 0, 0, 0],
-            [0.5 * dt ** 2, dt, 0, 0, 0],
-            [0, 0, 0.333 * dt ** 3, 0.5 * dt ** 2, 0],
-            [0, 0, 0.5 * dt ** 2, dt, 0],
-            [0, 0, 0, 0, 1]
+            [0.333 * dt ** 3, 0.5 * dt ** 2, 0, 0],
+            [0.5 * dt ** 2, dt, 0, 0],
+            [0, 0, 0.333 * dt ** 3, 0.5 * dt ** 2],
+            [0, 0, 0.5 * dt ** 2, dt]
         ])
 
-        self.x = A @ self.x + B @ input.T
+        self.nav_x = A @ self.nav_x + B @ input.T
         self.P = A @ self.P @ A.T + Q
     
     def update(self, output: np.ndarray):
-        error = output - self.model.get_sensor_output(self.x.T)
-        C = self.model.get_kalman_C(self.x.T)
+        error = output - self.model.get_sensor_output(self.nav_x.T)
+        C = self.model.get_kalman_C(self.nav_x.T)
         K = self.P @ C.T @ np.linalg.inv(C @ self.P @ C.T + self.R)
 
-        self.x += K @ error.T
-        self.P = (np.identity(5) - K @ C) @ self.P
+        self.nav_x += K @ error.T
+        self.P = (np.identity(4) - K @ C) @ self.P
+    
+    def get_optimal_nav_state(self):
+        return self.nav_x.T
+    
+    def update_actuator(self, U_actual):
+        self.U = U_actual
     
     def get_optimal_state(self):
-        return self.x.T
+        return self.model.get_state(self.nav_x.T, self.U)
