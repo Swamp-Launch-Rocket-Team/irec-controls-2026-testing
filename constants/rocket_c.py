@@ -55,7 +55,7 @@ servo_tao = 0.352
 rocket_refa = math.pi * rocket_radius**2
 rocket_cla = 10.182
 rocket_aoa_vel = (0.0100, -0.00002 ,-0.00003)
-rocket_cd_mach = (0.7915, -0.2082, 0.2302)
-rocket_cd_airbrake = (1, 1) #initial, determined in real time via adaptive model
+rocket_cd_mach = (0.7994, -0.4335, 1.1084, -1.3226, 0.6735) # 0.7815
+rocket_cd_airbrake = (1, 1) 
 
 coast_mass = motor_mass + rocket_mass

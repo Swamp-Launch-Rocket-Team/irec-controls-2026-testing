@@ -4,6 +4,7 @@ import scipy
 import datetime
 
 import constants.rocket_c as r
+import constants.gnc_c as g
 from gnc.gnc import GNC
 from simulation.noisy_ahrs import Noisy_AHRS
 from simulation.noisy_altimeter import Noisy_Altimeter
@@ -88,33 +89,33 @@ class Rocket:
         self.air_brakes = self.dino.add_air_brakes(
             drag_coefficient_curve="constants\CD Airbrake.csv",
             controller_function=self.update_current_actuation,
-            sampling_rate=50,
+            sampling_rate=100,
             reference_area=None,
             clamp=True,
             override_rocket_drag=False,
             name="Air Brakes",
         )
     
-    def call_gnc_pre_burnout(self, y, U_actual, accel, dt, p0, t0):
+    def call_gnc_pre_burnout(self, y, U_actual, nav_input, dt, p0, t0):
         if self.loop_number == 0:
             self.gnc = GNC(
-                np.array([0, 0, 0, 0]),
+                np.array([0, 0, 0, 0, 0, 0]),
                 p0, t0
             )
         if self.loop_number % self.np_frequency == 0:
-            self.gnc.nav_propegate(dt, accel)
+            self.gnc.nav_propegate(dt, nav_input)
         if self.loop_number % self.nu_frequency == 0:
-            self.gnc.nav_update(y)
+            self.gnc.nav_update(y, nav_input, True)
             self.gnc.actuator_update(U_actual)
 
-    def call_gnc_post_burnout(self, y, U_actual, accel, dt):
+    def call_gnc_post_burnout(self, y, U_actual, nav_input, time, dt):
         if self.loop_number % self.np_frequency == 0:
-            self.gnc.nav_propegate(dt, accel)
+            self.gnc.nav_propegate(dt, nav_input)
         if self.loop_number % self.nu_frequency == 0:
-            self.gnc.nav_update(y)
+            self.gnc.nav_update(y, nav_input, False)
             self.gnc.actuator_update(U_actual)
         if self.loop_number % self.c_frequency == 0:
-            self.gnc.control_update()
+            self.gnc.control_update(time)
 
     def update_current_actuation(self, time, cycle_frequency, state, state_history, observed_variables, brakes):
         burn_out = time > self.motor.burn_out_time + 0.25
@@ -142,15 +143,21 @@ class Rocket:
 
         z_noisy = self.altimeter.get_noisy_altitude(z)
 
-        sensors = np.array([z_noisy, noisy_euler_xyz[1]])        
+        sensors = np.array([z_noisy, noisy_euler_xyz[1], a_xy, a[2]])
 
         if burn_out:
-            self.call_gnc_post_burnout(sensors, self.actuator.state, np.array([a_xy, a[2]]), dt)
+            self.call_gnc_post_burnout(
+                sensors, 
+                self.actuator.state, 
+                np.array([a_xy, a[2], self.actuator.state]), 
+                time, 
+                dt
+            )
         else:
             self.call_gnc_pre_burnout(
                 sensors, 
                 self.actuator.state,
-                np.array([a_xy, a[2]]),
+                np.array([a_xy, a[2], self.actuator.state]),
                 dt,
                 self.env.pressure_ISA(r.sim_location[2]), 
                 self.env.temperature_ISA(r.sim_location[2]),
@@ -167,13 +174,14 @@ class Rocket:
             print(f"time: {time}\ndt: {dt}\nz: {z}\nvz: {v_z}\napogee: {x_h[0]}")
             print(f"predicted z: {x_nav[2]}\npredicted vz: {x_nav[3]}")
             print(f"axy: {a_xy}\naz: {a[2]}")
-            print(f"input: {self.gnc.input}\nactuator: {self.actuator.state}\n")
+            print(f"input: {self.gnc.input}\nactuator: {self.actuator.state}")
+            print(f"c1: {x_nav[4]}\nc2:{x_nav[5]}\n")
 
         self.loop_number += 1
         return (
             time,
             self.actuator.state,
-            x_h[0],
+            min(max(x_h[0] - g.target_apogee, -200), 200),
             dt
         )
 

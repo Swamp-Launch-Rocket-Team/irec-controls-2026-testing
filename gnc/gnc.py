@@ -11,13 +11,16 @@ class GNC:
         self.controller = StateController(self.dynamics)
         self.input = 0
 
-    def control_update(self):
+    def control_update(self, time):
         x_h = self.compass.get_optimal_state()
         x_nav = self.compass.get_optimal_nav_state()
-        self.input = self.controller.get_control_command(x_h, x_nav)
+        self.input = self.controller.get_control_command(x_h, x_nav, time)
     
-    def nav_update(self, y_i):
-        self.compass.update(y_i)
+    def nav_update(self, y_i, u_i, pre_burnout):
+        if pre_burnout:
+            self.compass.update(y_i, u_i)
+        else:
+            self.compass.update_with_drag(y_i, u_i)
     
     def actuator_update(self, U_actual):
         self.compass.update_actuator(U_actual)
