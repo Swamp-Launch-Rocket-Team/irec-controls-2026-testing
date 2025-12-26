@@ -112,7 +112,7 @@ class Rocket:
         if self.loop_number % self.np_frequency == 0:
             self.gnc.nav_propegate(dt, nav_input)
         if self.loop_number % self.nu_frequency == 0:
-            self.gnc.nav_update(y, nav_input, False)
+            self.gnc.nav_update(y, nav_input, True)
             self.gnc.actuator_update(U_actual)
         if self.loop_number % self.c_frequency == 0:
             self.gnc.control_update(time)
@@ -143,7 +143,7 @@ class Rocket:
 
         z_noisy = self.altimeter.get_noisy_altitude(z)
 
-        sensors = np.array([z_noisy, noisy_euler_xyz[1], a_xy, a[2]])
+        sensors = np.array([z_noisy, a_xy, a[2]])
 
         if burn_out:
             self.call_gnc_post_burnout(
@@ -175,13 +175,13 @@ class Rocket:
             print(f"predicted z: {x_nav[2]}\npredicted vz: {x_nav[3]}")
             print(f"axy: {a_xy}\naz: {a[2]}")
             print(f"input: {self.gnc.input}\nactuator: {self.actuator.state}")
-            print(f"c1: {x_nav[4]}\nc2:{x_nav[5]}\n")
+            print(f"c1: {x_nav[4]}\nc2:{x_nav[5]}\nP_c1: {self.gnc.compass.P[4][4]}\nP_c2: {self.gnc.compass.P[5][5]}\n")
 
         self.loop_number += 1
         return (
             time,
-            self.actuator.state,
-            min(max(x_h[0] - g.target_apogee, -200), 200),
+            x_nav[4],
+            x_nav[5],
             dt
         )
 
@@ -189,6 +189,7 @@ class Rocket:
         self.test_flight = rocketpy.Flight(
             rocket=self.dino, environment=self.env, rail_length=5.2, inclination=85, heading=0, terminate_on_apogee=True
         )
+        self.loop_number = 0
 
     def plot_results(self):
         self.test_flight.plots.linear_kinematics_data()
@@ -198,7 +199,7 @@ class Rocket:
         state = self.test_flight.apogee_state
         state[2] = state[2] - self.env.elevation
 
-        return state
+        return state[2]
     
     def get_burnout_state(self, t_post_burnout=0.25):
         state = self.test_flight.get_solution_at_time(self.motor.burn_out_time + t_post_burnout)

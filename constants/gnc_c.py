@@ -3,20 +3,18 @@ import math
 
 q = 0.0001
 
-Q_cd = np.diag([0, 0, 0, 0, 0.00001, 0.00001])
+Q_cd = np.diag([0, 0, 0, 0, 0.000005, 0.000005])
 
 R = np.array([
-    [0.25, 0, 0, 0],
-    [0, 0.05, 0, 0],
-    [0, 0, 1000000, 0],
-    [0, 0, 0, 1000000]
+    [0.25, 0, 0],
+    [0, 1000000, 0],
+    [0, 0, 1000000]
 ])
 
 R_drag = np.array([
-    [0.25, 0, 0, 0],
-    [0, 0.05, 0, 0],
-    [0, 0, 0.01, 0],
-    [0, 0, 0, 0.01]
+    [0.25, 0, 0],
+    [0, 0.01, 0],
+    [0, 0, 0.01]
 ])
 
 cQ = np.array([
@@ -25,13 +23,13 @@ cQ = np.array([
 ])
 
 cR = np.array([
-    [3.0]
+    [4.0]
 ])
 
 cI_domain = 10
 
 target_actuation = 0.5
-target_apogee = 2425
+target_apogee = 2300
 
 target_state = np.array([target_apogee, target_actuation])
 

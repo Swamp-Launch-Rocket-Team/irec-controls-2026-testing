@@ -13,7 +13,7 @@ class KalmanFilter:
         self.R_drag = g.R_drag
         self.nav_x = np.array([0, 0, 0, 0, r.rocket_cd_airbrake[0], r.rocket_cd_airbrake[1]]).T
         self.U = 0
-        self.P = np.identity(6)
+        self.P = np.zeros((6, 6))
 
     def predict(self, dt, input: np.ndarray):
         A = self.model.get_kalman_A(dt)
@@ -35,8 +35,8 @@ class KalmanFilter:
     
     def update(self, output: np.ndarray, input: np.ndarray):
         error = output - self.model.get_sensor_output(self.nav_x.T, input)
+        error[1] = 0.0
         error[2] = 0.0
-        error[3] = 0.0
 
         J_state, J_input = self.model.get_linearized_output(self.nav_x.T, input)
         C = J_state.T

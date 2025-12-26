@@ -141,14 +141,14 @@ class DynamicsModel:
     
     def get_sensor_output(self, nav_state, nav_input):
         nav_derivative = self.get_nav_state_derivative(nav_state, nav_input[2])
-        return np.array([nav_state[2], np.atan2(nav_state[3], nav_state[1]), nav_derivative[1], nav_derivative[3]])
+        return np.array([nav_state[2], nav_derivative[1], nav_derivative[3]])
     
     def get_linearized_output(self, nav_state_0, nav_input_0, e=1e-6):
         #forward finite difference approx        
         output_0 = self.get_sensor_output(nav_state_0, nav_input_0)
 
-        J_state = np.zeros((6, 4))
-        J_input = np.zeros((3, 4))
+        J_state = np.zeros((6, 3))
+        J_input = np.zeros((3, 3))
 
         for i in range(6):
             state_i = nav_state_0.copy()
