@@ -8,61 +8,62 @@ import numpy as np
 class KalmanFilter:
     def __init__(self, dynamics_model: DynamicsModel):
         self.model = dynamics_model
-        self.q = g.q
-        self.R = g.R
-        self.R_drag = g.R_drag
-        self.nav_x = np.array([0, 0, 0, 0, r.rocket_cd_airbrake[0], r.rocket_cd_airbrake[1]]).T
-        self.U = 0
-        self.P = np.zeros((6, 6))
+        self.actuator_position = 0
+        self.nav_x = np.array([0, 0, 0, 0]).T
+        self.drag_x = np.array([r.rocket_cd_airbrake[0], r.rocket_cd_airbrake[1], r.rocket_cl_vz[0], r.rocket_cl_vz[1]]).T
+        self.nav_P = np.zeros((4, 4))
+        self.drag_P = np.zeros((4, 4))
 
-    def predict(self, dt, input: np.ndarray):
+    def predict(self, dt, nav_input: np.ndarray):
         A = self.model.get_kalman_A(dt)
         B = self.model.get_kalman_B(dt)
         
-        Q = self.q * np.array([
-            [0.333 * dt ** 3, 0.5 * dt ** 2, 0, 0, 0, 0],
-            [0.5 * dt ** 2, dt, 0, 0, 0, 0],
-            [0, 0, 0.333 * dt ** 3, 0.5 * dt ** 2, 0, 0],
-            [0, 0, 0.5 * dt ** 2, dt, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0]
+        Q = g.q * np.array([
+            [0.333 * dt ** 3, 0.5 * dt ** 2, 0, 0],
+            [0.5 * dt ** 2, dt, 0, 0],
+            [0, 0, 0.333 * dt ** 3, 0.5 * dt ** 2],
+            [0, 0, 0.5 * dt ** 2, dt]
         ])
 
-        Q += g.Q_cd * dt
-
-        self.nav_x = A @ self.nav_x + B @ input.T
-        self.P = A @ self.P @ A.T + Q
+        self.nav_x = A @ self.nav_x + B @ nav_input.T
+        self.nav_P = A @ self.nav_P @ A.T + Q
     
-    def update(self, output: np.ndarray, input: np.ndarray):
-        error = output - self.model.get_sensor_output(self.nav_x.T, input)
-        error[1] = 0.0
-        error[2] = 0.0
+    def predict_drag(self, dt):
+        A = self.model.get_drag_A()
+        Q = g.dQ * dt
 
-        J_state, J_input = self.model.get_linearized_output(self.nav_x.T, input)
+        self.drag_x = A @ self.drag_x
+        self.drag_P = A @ self.drag_P @ A.T + Q
+    
+    def update(self, nav_output: np.ndarray):
+        error = nav_output - self.nav_x.T[2]
+        C = np.array([[0, 0, 1, 0]])
+
+        K = self.nav_P @ C.T @ np.linalg.inv(C @ self.nav_P @ C.T + g.R)
+
+        self.nav_x += K @ error.T
+        self.nav_P = (np.identity(4) - K @ C) @ self.nav_P
+    
+    def update_drag(self, drag_output: np.ndarray):
+        drag_input = np.append(self.nav_x.T, self.actuator_position)
+        error = drag_output - self.model.get_drag_output(self.drag_x.T, drag_input)
+
+        J_state, J_input = self.model.get_linearized_drag_output(self.drag_x.T, drag_input)
         C = J_state.T
         D = J_input.T
 
-        K = self.P @ C.T @ np.linalg.inv(C @ self.P @ C.T + self.R)
-
-        self.nav_x += K @ error.T
-        self.P = (np.identity(6) - K @ C) @ self.P
+        K = self.drag_P @ C.T @ np.linalg.inv(C @ self.drag_P @ C.T + g.dR)
+        self.drag_x += K @ error.T
+        self.drag_P = (np.identity(4) - K @ C) @ self.drag_P
     
-    def update_with_drag(self, output: np.ndarray, input: np.ndarray):
-        error = output - self.model.get_sensor_output(self.nav_x.T, input)
-        J_state, J_input = self.model.get_linearized_output(self.nav_x.T, input)
-        C = J_state.T
-        D = J_input.T
-
-        K = self.P @ C.T @ np.linalg.inv(C @ self.P @ C.T + self.R_drag)
-
-        self.nav_x += K @ error.T
-        self.P = (np.identity(6) - K @ C) @ self.P
+    def update_actuator(self, U_actual):
+        self.actuator_position = U_actual
     
     def get_optimal_nav_state(self):
         return self.nav_x.T
     
-    def update_actuator(self, U_actual):
-        self.U = U_actual
+    def get_optimal_drag_state(self):
+        return self.drag_x.T
     
     def get_optimal_state(self):
-        return self.model.get_state(self.nav_x.T, self.U)
+        return self.model.get_state(self.nav_x.T, self.drag_x.T, self.actuator_position)

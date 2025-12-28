@@ -96,26 +96,25 @@ class Rocket:
             name="Air Brakes",
         )
     
-    def call_gnc_pre_burnout(self, y, U_actual, nav_input, dt, p0, t0):
+    def call_gnc_pre_burnout(self, nav_output, a_output, nav_input, dt, p0, t0):
         if self.loop_number == 0:
-            self.gnc = GNC(
-                np.array([0, 0, 0, 0, 0, 0]),
-                p0, t0
-            )
+            self.gnc = GNC(p0, t0)
         if self.loop_number % self.np_frequency == 0:
             self.gnc.nav_propegate(dt, nav_input)
         if self.loop_number % self.nu_frequency == 0:
-            self.gnc.nav_update(y, nav_input, True)
-            self.gnc.actuator_update(U_actual)
+            self.gnc.nav_update(nav_output)
+            self.gnc.actuator_update(a_output)
 
-    def call_gnc_post_burnout(self, y, U_actual, nav_input, time, dt):
+    def call_gnc_post_burnout(self, nav_output, drag_output, a_output, nav_input, dt):
         if self.loop_number % self.np_frequency == 0:
+            self.gnc.drag_propegate(dt)
             self.gnc.nav_propegate(dt, nav_input)
         if self.loop_number % self.nu_frequency == 0:
-            self.gnc.nav_update(y, nav_input, True)
-            self.gnc.actuator_update(U_actual)
+            self.gnc.drag_update(drag_output)
+            self.gnc.nav_update(nav_output)
+            self.gnc.actuator_update(a_output)
         if self.loop_number % self.c_frequency == 0:
-            self.gnc.control_update(time)
+            self.gnc.control_update()
 
     def update_current_actuation(self, time, cycle_frequency, state, state_history, observed_variables, brakes):
         burn_out = time > self.motor.burn_out_time + 0.25
@@ -143,21 +142,23 @@ class Rocket:
 
         z_noisy = self.altimeter.get_noisy_altitude(z)
 
-        sensors = np.array([z_noisy, a_xy, a[2]])
+        nav_output = np.array([z_noisy])
+        nav_input = np.array([a_xy, a[2]])
+        drag_output = nav_input.copy()
 
         if burn_out:
             self.call_gnc_post_burnout(
-                sensors, 
-                self.actuator.state, 
-                np.array([a_xy, a[2], self.actuator.state]), 
-                time, 
+                nav_output,
+                drag_output,
+                self.actuator.get_state(), 
+                nav_input,
                 dt
             )
         else:
             self.call_gnc_pre_burnout(
-                sensors, 
-                self.actuator.state,
-                np.array([a_xy, a[2], self.actuator.state]),
+                nav_output, 
+                self.actuator.get_state(),
+                nav_input,
                 dt,
                 self.env.pressure_ISA(r.sim_location[2]), 
                 self.env.temperature_ISA(r.sim_location[2]),
@@ -168,20 +169,24 @@ class Rocket:
         
         x_nav = self.gnc.compass.get_optimal_nav_state()
         x_h = self.gnc.compass.get_optimal_state()
+        x_drag = self.gnc.compass.get_optimal_drag_state()
+
 
         if self.loop_number > 1 and self.loop_number % 50 == 0:
             print(f"---   iteration {self.loop_number}   ---")
             print(f"time: {time}\ndt: {dt}\nz: {z}\nvz: {v_z}\napogee: {x_h[0]}")
             print(f"predicted z: {x_nav[2]}\npredicted vz: {x_nav[3]}")
             print(f"axy: {a_xy}\naz: {a[2]}")
-            print(f"input: {self.gnc.input}\nactuator: {self.actuator.state}")
-            print(f"c1: {x_nav[4]}\nc2:{x_nav[5]}\nP_c1: {self.gnc.compass.P[4][4]}\nP_c2: {self.gnc.compass.P[5][5]}\n")
+            print(f"input: {self.gnc.input}\nactuator: {self.actuator.get_state()}")
+            print(f"cD_1: {x_drag[0]}\ncD_2: {x_drag[1]}\ncL_1: {x_drag[2]}\ncL_2: {x_drag[3]}")
+            print(f"P_c1: {self.gnc.compass.drag_P[0][0]}\nP_c2: {self.gnc.compass.drag_P[1][1]}")
+            print(f"P_c3: {self.gnc.compass.drag_P[2][2]}\nP_c3: {self.gnc.compass.drag_P[3][3]}\n")
 
         self.loop_number += 1
         return (
             time,
-            x_nav[4],
-            x_nav[5],
+            self.actuator.state,
+            max(min(x_h[0] - g.target_state[0], 150), -150),
             dt
         )
 

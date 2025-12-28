@@ -6,7 +6,6 @@ import constants.gnc_c as g
 
 class DynamicsModel:
     def __init__(self, atmosphere: AtmosphereModel):
-        self.cla = r.rocket_cla
         self.cd_mach= r.rocket_cd_mach
         self.cd_airbrake = r.rocket_cd_airbrake
         self.atmosphere = atmosphere
@@ -35,8 +34,8 @@ class DynamicsModel:
         
         return base_cd
     
-    def get_airbrake_cd(self, U, nav_state):
-        return nav_state[4] + nav_state[5] * U
+    def get_airbrake_cd(self, nav_input, drag_state):
+        return drag_state[0] + drag_state[1] * nav_input
     
     def get_cd(self, base_cd, airbrake_cd):
         return base_cd * airbrake_cd
@@ -44,17 +43,21 @@ class DynamicsModel:
     def get_drag(self, dyn_p, cd):
         return cd * r.rocket_refa * dyn_p
     
-    def get_cl(self, aoa):
-        return aoa * self.cla
+    def get_cl(self, drag_state, vz):
+        cl = 0.0
+
+        for i in range(len(r.rocket_cl_vz)):
+            cl += drag_state[i + 2] * vz ** i
+        
+        return cl
     
     def get_lift(self, dyn_p, cl):
         return cl * r.rocket_refa * dyn_p
     
     def get_actuator_derivative(self, U_command, U_actual):
-        U_command = np.clip(U_command, 0, 1)
         return (U_command - U_actual) / r.servo_tao
     
-    def get_nav_state_derivative(self, nav_state, input):
+    def get_nav_state_derivative(self, nav_state, a_state, drag_state):
         w1, w2 = self.get_wind(nav_state)
         
         c = self.atmosphere.get_c(nav_state[2])
@@ -63,45 +66,46 @@ class DynamicsModel:
         dyn_p = self.get_dyn_p(nav_state, v_mag)
 
         base_cd = self.get_base_cd(mach)
-        airbrake_cd = self.get_airbrake_cd(input, nav_state)
+        airbrake_cd = self.get_airbrake_cd(a_state, drag_state)
         cd = self.get_cd(base_cd, airbrake_cd)
+        cl = self.get_cl(drag_state, nav_state[3])
+
         drag = -self.get_drag(dyn_p, cd) * w1
+        lift = self.get_lift(dyn_p, cl) * w2
 
         gravity = -a.gravity * r.coast_mass * np.array([0, 1])
 
-        net_force = drag + gravity
+        net_force = drag + gravity + lift
         net_acceleration = net_force / r.coast_mass
 
         return np.array([
             nav_state[1],
             net_acceleration[0],
             nav_state[3],
-            net_acceleration[1],
-            0.0,
-            0.0
+            net_acceleration[1]
         ])
     
 
-    def get_z_apogee(self, nav_state, input_0=g.target_actuation):
+    def get_z_apogee(self, nav_state, drag_state, a_state=g.target_actuation):
         first_loop = True
         state_i = nav_state.copy()
-        k = np.array([0, 0, 0, 0, 0, 0])
+        k = np.array([0, 0, 0, 0])
 
         while state_i[3] > 0:
             # RK4 integration
             if first_loop:
-                k1 = self.get_nav_state_derivative(state_i, input_0)
-                k2 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k1, input_0)
-                k3 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k2, input_0)
-                k4 = self.get_nav_state_derivative(state_i + g.dt_guidance*k3, input_0)
+                k1 = self.get_nav_state_derivative(state_i, a_state, drag_state)
+                k2 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k1, a_state, drag_state)
+                k3 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k2, a_state, drag_state)
+                k4 = self.get_nav_state_derivative(state_i + g.dt_guidance*k3, a_state, drag_state)
                 k = 0.1666*(k1 + 2.0*k2 + 2.0*k3 + k4)
                 state_i = state_i + g.dt_guidance*k
                 first_loop = False
             else:
-                k1 = self.get_nav_state_derivative(state_i, g.target_actuation)
-                k2 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k1, g.target_actuation)
-                k3 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k2, g.target_actuation)
-                k4 = self.get_nav_state_derivative(state_i + g.dt_guidance*k3, g.target_actuation)
+                k1 = self.get_nav_state_derivative(state_i, g.target_actuation, drag_state)
+                k2 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k1, g.target_actuation, drag_state)
+                k3 = self.get_nav_state_derivative(state_i + 0.5*g.dt_guidance*k2, g.target_actuation, drag_state)
+                k4 = self.get_nav_state_derivative(state_i + g.dt_guidance*k3, g.target_actuation, drag_state)
                 k = 0.1666*(k1 + 2.0*k2 + 2.0*k3 + k4)
                 state_i = state_i + g.dt_guidance*k
         
@@ -109,21 +113,21 @@ class DynamicsModel:
 
         return state_i[2] - k[2] * t_post
     
-    def get_state(self, nav_state, U_actual):
+    def get_state(self, nav_state, drag_state, a_state):
         return np.array([
-            self.get_z_apogee(nav_state),
-            U_actual
+            self.get_z_apogee(nav_state, drag_state, a_state),
+            a_state
         ])
     
-    def get_state_derivative(self, state, input, nav_state):
+    def get_state_derivative(self, state, input, nav_state, drag_state):
         return np.array([
-            (self.get_z_apogee(nav_state, input) - state[0]) / g.dt_guidance,
+            (self.get_z_apogee(nav_state, drag_state, state[1]) - state[0]) / g.dt_guidance,
             self.get_actuator_derivative(input, state[1])
         ])
     
-    def get_linearized(self, state_0, input_0, nav_state_0, e=1e-6):
+    def get_linearized(self, state_0, input_0, nav_state_0, drag_state_0, e=1e-6):
         #forward finite difference approx        
-        state_derivative_0 = self.get_state_derivative(state_0, input_0, nav_state_0)
+        state_derivative_0 = self.get_state_derivative(state_0, input_0, nav_state_0, drag_state_0)
 
         J_state = np.zeros((2, 2))
         J_input = np.zeros((1, 2))
@@ -132,36 +136,36 @@ class DynamicsModel:
             state_i = state_0.copy()
             state_i[i] += e
 
-            state_partial_i = (self.get_state_derivative(state_i, input_0, nav_state_0) - state_derivative_0) / e
+            state_partial_i = (self.get_state_derivative(state_i, input_0, nav_state_0, drag_state_0) - state_derivative_0) / e
             J_state[i] = state_partial_i
         
-        J_input[0] = (self.get_state_derivative(state_0, input_0 + e, nav_state_0) - state_derivative_0) / e
+        J_input[0] = (self.get_state_derivative(state_0, input_0 + e, nav_state_0, drag_state_0) - state_derivative_0) / e
         
         return J_state, J_input
     
-    def get_sensor_output(self, nav_state, nav_input):
-        nav_derivative = self.get_nav_state_derivative(nav_state, nav_input[2])
-        return np.array([nav_state[2], nav_derivative[1], nav_derivative[3]])
+    def get_drag_output(self, drag_state, drag_input):
+        nav_derivative = self.get_nav_state_derivative(drag_input[0:4], drag_input[4], drag_state)
+        return np.array([nav_derivative[1], nav_derivative[3]])
     
-    def get_linearized_output(self, nav_state_0, nav_input_0, e=1e-6):
+    def get_linearized_drag_output(self, drag_state_0, drag_input_0, e=1e-6):
         #forward finite difference approx        
-        output_0 = self.get_sensor_output(nav_state_0, nav_input_0)
+        output_0 = self.get_drag_output(drag_state_0, drag_input_0)
 
-        J_state = np.zeros((6, 3))
-        J_input = np.zeros((3, 3))
+        J_state = np.zeros((4, 2))
+        J_input = np.zeros((5, 2))
 
-        for i in range(6):
-            state_i = nav_state_0.copy()
-            state_i[i] += e
+        for i in range(4):
+            drag_state_i = drag_state_0.copy()
+            drag_state_i[i] += e
 
-            state_partial_i = (self.get_sensor_output(state_i, nav_input_0) - output_0) / e
+            state_partial_i = (self.get_drag_output(drag_state_i, drag_input_0) - output_0) / e
             J_state[i] = state_partial_i
         
-        for i in range(3):
-            input_i = nav_input_0.copy()
-            input_i[i] += e
+        for i in range(5):
+            drag_input_i = drag_input_0.copy()
+            drag_input_i[i] += e
 
-            input_partial_i = (self.get_sensor_output(nav_state_0, input_i) - output_0) / e
+            input_partial_i = (self.get_drag_output(drag_state_0, drag_input_i) - output_0) / e
             J_input[i] = input_partial_i
         
         return J_state, J_input
@@ -169,25 +173,28 @@ class DynamicsModel:
     def get_kalman_A(self, dt):
         #regular matrix, assumes constant accel
         return np.array([
-            [1, dt, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0],
-            [0, 0, 1, dt, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 1]
+            [1, dt, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, dt],
+            [0, 0, 0, 1]
         ])
     
     def get_kalman_B(self, dt):
         #input augmented with accelerometer readings
         return np.array([
-            [0.5*dt**2, 0, 0],
-            [dt, 0, 0],
-            [0, 0.5*dt**2, 0],
-            [0, dt, 0],
-            [0, 0, 0],
-            [0, 0, 0]
+            [0.5*dt**2, 0],
+            [dt, 0],
+            [0, 0.5*dt**2],
+            [0, dt]
         ])
     
-    def get_kalman_CD(self, nav_state_0, nav_input_0):
-        #standard shit
-        return self.get_linearized_output(nav_state_0, nav_input_0)
+    def get_drag_A(self):
+        return np.identity(4)
+    
+    def get_drag_B(self):
+        return np.array([
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0]
+        ])

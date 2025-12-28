@@ -11,8 +11,8 @@ class StateController:
     def __init__(self, dynamics_model: DynamicsModel):
         self.dynamics_model = dynamics_model
     
-    def get_command_matrix(self, state_0, input_0, nav_state_0):
-        J_state, J_input = self.dynamics_model.get_linearized(state_0, input_0, nav_state_0)
+    def get_command_matrix(self, state_0, input_0, nav_state_0, drag_state_0):
+        J_state, J_input = self.dynamics_model.get_linearized(state_0, input_0, nav_state_0, drag_state_0)
 
         A = J_state.T
         B = J_input.T
@@ -23,14 +23,15 @@ class StateController:
 
         return K
 
-    def get_control_command(self, true_state, nav_state, time):  
+    def get_control_command(self, true_state, nav_state, drag_state):  
         state_error = true_state - g.target_state
         state_error = np.array([state_error]).T
         
         K = self.get_command_matrix(
             true_state,
             g.target_actuation,
-            nav_state
+            nav_state,
+            drag_state
         )
 
         return g.target_actuation - float(K @ state_error)

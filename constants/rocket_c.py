@@ -51,11 +51,13 @@ sim_location = (31.9996, 102.0757, 847.9536)
 sim_date = datetime.date.today() + datetime.timedelta(days=1)
 
 servo_tao = 0.352
+servo_time_delay = 0.01
+servo_noise = 0.02
 
 rocket_refa = math.pi * rocket_radius**2
-rocket_cla = 10.182
-rocket_aoa_vel = (0.0100, -0.00002 ,-0.00003)
-rocket_cd_mach = [0.7994, -0.4335, 1.1084, -1.3226, 0.6735] # 0.7994
-rocket_cd_airbrake = (1, 1) 
+rocket_cl_vz = (0.0, 0.0)
+rocket_aoa_vel = (0.0100, -0.00002, -0.00003)
+rocket_cd_mach = [0.7994, -0.4335, 1.1084, -1.3226, 0.6735] # [0.7994, -0.4335, 1.1084, -1.3226, 0.6735]
+rocket_cd_airbrake = (1.0, 0.5)
 
 coast_mass = motor_mass + rocket_mass

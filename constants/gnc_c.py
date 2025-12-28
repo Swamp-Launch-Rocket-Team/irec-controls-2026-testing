@@ -2,34 +2,16 @@ import numpy as np
 import math
 
 q = 0.0001
+R = np.diag([1.0])
 
-Q_cd = np.diag([0, 0, 0, 0, 0.000005, 0.000005])
+dQ = np.diag([0.000001, 0.000001, 0.000000, 0.000000])
+dR = np.diag([0.001, 0.001])
 
-R = np.array([
-    [0.25, 0, 0],
-    [0, 1000000, 0],
-    [0, 0, 1000000]
-])
-
-R_drag = np.array([
-    [0.25, 0, 0],
-    [0, 0.01, 0],
-    [0, 0, 0.01]
-])
-
-cQ = np.array([
-    [1.0, 0],
-    [0, 0]
-])
-
-cR = np.array([
-    [4.0]
-])
-
-cI_domain = 10
+cQ = np.diag([20.0, 0.0])
+cR = np.diag([1.0])
 
 target_actuation = 0.5
-target_apogee = 2300
+target_apogee = 2400
 
 target_state = np.array([target_apogee, target_actuation])
 
