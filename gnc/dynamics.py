@@ -35,7 +35,7 @@ class DynamicsModel:
         return base_cd
     
     def get_airbrake_cd(self, nav_input, drag_state):
-        return drag_state[0] + drag_state[1] * nav_input
+        return drag_state[0] + drag_state[1] * nav_input + drag_state[2] * nav_input ** 2
     
     def get_cd(self, base_cd, airbrake_cd):
         return base_cd * airbrake_cd
@@ -68,14 +68,12 @@ class DynamicsModel:
         base_cd = self.get_base_cd(mach)
         airbrake_cd = self.get_airbrake_cd(a_state, drag_state)
         cd = self.get_cd(base_cd, airbrake_cd)
-        cl = self.get_cl(drag_state, nav_state[3])
 
         drag = -self.get_drag(dyn_p, cd) * w1
-        lift = self.get_lift(dyn_p, cl) * w2
 
         gravity = -a.gravity * r.coast_mass * np.array([0, 1])
 
-        net_force = drag + gravity + lift
+        net_force = drag + gravity
         net_acceleration = net_force / r.coast_mass
 
         return np.array([
@@ -151,10 +149,10 @@ class DynamicsModel:
         #forward finite difference approx        
         output_0 = self.get_drag_output(drag_state_0, drag_input_0)
 
-        J_state = np.zeros((4, 2))
+        J_state = np.zeros((3, 2))
         J_input = np.zeros((5, 2))
 
-        for i in range(4):
+        for i in range(3):
             drag_state_i = drag_state_0.copy()
             drag_state_i[i] += e
 
@@ -189,11 +187,10 @@ class DynamicsModel:
         ])
     
     def get_drag_A(self):
-        return np.identity(4)
+        return np.identity(3)
     
     def get_drag_B(self):
         return np.array([
-            [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0]

@@ -178,9 +178,9 @@ class Rocket:
             print(f"predicted z: {x_nav[2]}\npredicted vz: {x_nav[3]}")
             print(f"axy: {a_xy}\naz: {a[2]}")
             print(f"input: {self.gnc.input}\nactuator: {self.actuator.get_state()}")
-            print(f"cD_1: {x_drag[0]}\ncD_2: {x_drag[1]}\ncL_1: {x_drag[2]}\ncL_2: {x_drag[3]}")
+            print(f"cD_1: {x_drag[0]}\ncD_2: {x_drag[1]}\ncD_3: {x_drag[2]}")
             print(f"P_c1: {self.gnc.compass.drag_P[0][0]}\nP_c2: {self.gnc.compass.drag_P[1][1]}")
-            print(f"P_c3: {self.gnc.compass.drag_P[2][2]}\nP_c3: {self.gnc.compass.drag_P[3][3]}\n")
+            print(f"P_c3: {self.gnc.compass.drag_P[2][2]}\n")
 
         self.loop_number += 1
         return (

@@ -10,9 +10,9 @@ class KalmanFilter:
         self.model = dynamics_model
         self.actuator_position = 0
         self.nav_x = np.array([0, 0, 0, 0]).T
-        self.drag_x = np.array([r.rocket_cd_airbrake[0], r.rocket_cd_airbrake[1], r.rocket_cl_vz[0], r.rocket_cl_vz[1]]).T
+        self.drag_x = np.array([r.rocket_cd_airbrake[0], r.rocket_cd_airbrake[1], r.rocket_cd_airbrake[2]]).T
         self.nav_P = np.zeros((4, 4))
-        self.drag_P = np.zeros((4, 4))
+        self.drag_P = np.zeros((3, 3))
 
     def predict(self, dt, nav_input: np.ndarray):
         A = self.model.get_kalman_A(dt)
@@ -54,7 +54,7 @@ class KalmanFilter:
 
         K = self.drag_P @ C.T @ np.linalg.inv(C @ self.drag_P @ C.T + g.dR)
         self.drag_x += K @ error.T
-        self.drag_P = (np.identity(4) - K @ C) @ self.drag_P
+        self.drag_P = (np.identity(3) - K @ C) @ self.drag_P
     
     def update_actuator(self, U_actual):
         self.actuator_position = U_actual
